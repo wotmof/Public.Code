@@ -18,4 +18,17 @@ dbcmgt.conf
 dbcmgt configuration file, basically filters containers to list.<br>
 Create in /etc:<br>
 /etc/dbcmgt.conf<br>
-
+<br>
+pmdg.lsp
+--------------
+Poor Men Data Guard Log Shipping script.<br>
+It syncs Oracle Database archived redo log from PRIMARY to STANDBY, for recovery.<.br>
+Copy/install as oracle in your scripts dir.<br>
+Set to run via crontab at <your_log_switching_rate>.<br>
+<br>
+pmdg.rcv
+--------------
+Poor Men Data Guard Recovery.<br>
+It applies archived redo log shipped by PRIMARY, to the STANBY database (which is in MOUNT).<br>
+Copy/install as oracle in your scripts dir.<br>
+Set to run via crontab at <your_log_switching_rate>.<br>
