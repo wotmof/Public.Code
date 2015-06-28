@@ -1,0 +1,221 @@
+#!/bin/bash
+#
+#
+#
+# Name			dbcmgt
+# Path			/usr/bin
+# Description		Database inside linux Containers Management
+#
+#
+#
+#
+#+------------------------------------------------------------+
+#| wotmof was here                                            |
+#| wotmof@yahoo.com - fabrizio.bordacchini@simplyhealth.co.uk |
+#| ver 0.0.1 - JUN 2015 [UK] >|<                              |
+#| in the meantime                                            |
+#+------------------------------------------------------------+
+#
+#==================================================================
+trap 'clear; echo Bye.; echo; exit 0' 2 3
+#==================================================================
+function log2()
+{
+	printf "%10s %8s %-80s\n" "$(date +%d/%m/%Y)" "$(date +%H:%M:%S)" "$msg" >> $___logfile
+}
+function header()
+{
+	clear
+	title=" $(hostname -s) Linux Containers Management "; title_=${#title}
+	for((i=1;i<=$((_cols/2-title_/2));i++)); do printf "="; done
+	printf "$title"
+	for((i=1;i<=$((_cols/2-title_/2));i++)); do printf "="; done; echo
+}
+
+function lxc_db_status()
+{
+	inst_bg=$(lxc-attach -n $container -- ps -ef | grep ora_smo | grep $inst_name | wc -l | awk '{print $1}')
+	if [ $inst_bg -eq 1 ];
+	then
+		_cmd="lxc-attach -n $container -- su - oracle -c '$_oramgt $inst_name status'"
+		data=$(eval $_cmd)
+		inst_status=$(echo $data | awk '{print $1}')
+		lsnr_status=$(echo $data | awk '{print $2}')
+		standby_status=$(echo $data | awk '{print $3}')
+	else
+		inst_status="CLOSED"
+		lsnr_status=$(lxc-attach -n $container -- ps -ef | grep tnslsnr | grep -v grep | wc -l | awk '{print $1}')
+		standby_status="UNKNOWN"
+		if [ $lsnr_status -eq 1 ]; then lsnr_status="ONLINE"; else lsnr_status="OFFLINE"; fi
+	fi
+}
+
+function plot_status()
+{
+	case $inst_status in
+		OPEN)		printf "\e[38;05;255;42m[  OPEN   ]\e[0m "	;;
+		MOUNTED)	printf "\e[38;05;0;43m[ MOUNTED ]\e[0m "	;;
+		CLOSED)		printf "\e[38;05;255;41m[ CLOSED  ]\e[0m "	;;
+		*)		printf "\e[38;05;0;107m[ UNKNOWN ]\e[0m "	;;
+	esac
+	case $lsnr_status in
+		ONLINE)		printf "\e[38;05;255;42m[ ONLINE  ]\e[0m "	;;
+		OFFLINE)	printf "\e[38;05;255;41m[ OFFLINE ]\e[0m "	;;
+		*)		printf "\e[38;05;0;107m[ UNKNOWN ]\e[0m "	;;
+	esac
+	case $standby_status in
+		PHYSICAL)	printf "\e[38;05;0;43m[ PHYSICAL STANDBY ]\e[0m\n"     ;;
+		SNAPSHOT)	printf "\e[38;05;0;41m[ SNAPSHOT STANDBY ]\e[0m\n"     ;;
+		PRIMARY)	printf "\e[38;05;255;42m[ PRIMARY DATABASE ]\e[0m\n"     ;;
+		*)		printf "\e[38;05;0;107m[     UNKNOWN      ]\e[0m\n"	;;
+	esac
+}
+
+function dbs_status()
+{
+	run=1
+	while [ $run -eq 1 ];
+	do
+		header
+		if [ "$target" = "ALL" ];
+		then
+			while read container inst_name startup_mode;
+			do
+				printf "%-25s %-12s %12s " $container $inst_name $startup_mode
+				lxc_db_status; plot_status
+			done < $___cfg
+		else
+			grep $target $___cfg | awk '{print $1" "$2" "$3}' | while read container inst_name startup_mode;
+			do
+				printf "%-25s %-12s %12s " $container $inst_name $startup_mode
+				lxc_db_status; plot_status
+			done
+		fi
+		for((i=1;i<=$_cols;i++)); do printf "="; done; echo
+		if [ $refresh -eq 0 ];
+		then
+			run=0
+		else
+			for ((aa=1;aa<=$refresh;aa++)); do printf "."; sleep 1; done
+		fi
+	done
+}
+
+function dbs_startup()
+{
+	if [ "$target" = "ALL" ];
+	then
+		while read container inst_name startup_mode;
+		do
+			lxc_db_status
+			if [ "$inst_status" = "CLOSED" ];
+			then
+				msg="Starting up Database [$inst_name]"; log2
+				_cmd="lxc-attach -n $container -- su - oracle -c '$_oramgt $inst_name start $startup_mode'"
+				eval $_cmd >/dev/null
+				sleep 3
+				lxc_db_status; msg="Database [${inst_name}] on [${container}] is $inst_status";log2
+			else
+				msg="Database [${inst_name}] on [${container}] already $inst_status"; log2
+			fi
+		done < $___cfg
+	else
+		grep $target $___cfg | awk '{print $1" "$2" "$3}' | while read container inst_name startup_mode;
+		do
+			lxc_db_status
+			if [ "$inst_status" = "CLOSED" ];
+			then
+				msg="Starting up Database [$inst_name]"; log2
+				_cmd="lxc-attach -n $container -- su - oracle -c '$_oramgt $inst_name start $startup_mode'"
+				eval $_cmd >/dev/null
+				sleep 3
+				lxc_db_status; msg="Database [${inst_name}] on [${container}] is $inst_status";log2
+			else
+				msg="Database [${inst_name}] on [${container}] already $inst_status"; log2
+			fi
+		done
+	fi
+}
+
+function dbs_shutdown()
+{
+	echo; printf "Are you sure you want to shutdown $target database(s)? (y/n): "; read GOON</dev/tty
+	if [[ ("$GOON" = "n" || "$GOON" = "N") ]];
+	then
+		clear; echo; Bye.; exit 0
+	else
+		if [ "$target" = "ALL" ];
+		then
+			while read container inst_name startup_mode;
+			do
+				lxc_db_status
+				if [ "$inst_name" = "CLOSED" ];
+				then
+					echo "Database [${inst_name}] on [${container}] is CLOSED"
+				else
+					msg="Shutting down Database [$inst_name] on [${container}]"; log2
+					_cmd="lxc-attach -n $container -- su - oracle -c '$_oramgt $inst_name shutdown immediate'"
+					eval $_cmd >/dev/null; sleep 3
+					lxc_db_status; msg="Database [${inst_name}] on [${container}] is $inst_status";log2
+				fi
+			done < $___cfg
+		else
+			grep $target $___cfg | awk '{print $1" "$2" "$3}' | while read container inst_name startup_mode;
+			do
+				lxc_db_status
+				if [ "$inst_name" = "CLOSED" ];
+				then
+					echo "Database [${inst_name}] on [${container}] is CLOSED"
+				else
+					msg="Shutting down Database [$inst_name] on [${target}]"; log2
+					_cmd="lxc-attach -n $container -- su - oracle -c '$_oramgt $inst_name shutdown immediate'"
+					eval $_cmd >/dev/null; sleep 3
+					lxc_db_status; msg="Database [${inst_name}] on [${container}] is $inst_status";log2
+				fi
+				
+			done
+		fi
+	fi
+}
+#==================================================================
+_exec="dbcmgt"
+base_dir="/etc"
+___cfg="${base_dir}/${_exec}.conf"
+___logfile="/var/log/lxc/dbcmgt.log"
+_oramgt="/home/oracle/oramgt"
+_cols=$(tput cols)
+
+#==================================================================
+if [ ! -f $___cfg ];
+then
+	clear; echo
+	echo "ERROR: Unable to locate utility config file \"$___cfg\""
+	echo; exit 0
+fi
+if [ ! "$USER" = "root" ];
+then
+	clear; echo
+	echo "WARNING: You should run this script as \"root\""
+	echo; exit 0
+fi
+if [ $# -lt 1 ];
+then
+	clear; echo
+	echo "Manage Oracle Databases running inside LXC (Linux Containers)"; echo; echo
+	echo "Usage: \$ $_exec <status|start|shutdown> { ALL | <container> }"
+	echo; exit 1
+else
+	action=$1
+	target=$2; [ -z $target ] && target="ALL"
+fi
+
+case $action in
+	status)		if [ -z $3 ]; then refresh=0; else refresh=$3; fi; dbs_status		;;
+	start)		dbs_startup								;;
+	shutdown)	dbs_shutdown								;;
+	*)		clear; echo; echo "ERROR: option not available"; echo; exit 1		;;
+esac
+echo	
+
+exit 0
+

@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+#
+#
+# Name                  oramgt
+# path                  /home/oracle ?!?
+# Description           Oracle Database/listener startup/shutdown utility
+#
+#
+#
+#
+#
+trap 'clear; echo Bye.; echo; exit 0' 2 3
+
+#=====================================================================================
+function db_status()
+{
+	bgp=$(ps -ef | grep ora_ | grep $ORACLE_SID | grep -v grep | wc -l | awk '{print $1}')
+	if [ $bgp -lt 5 ];
+	then
+		inst_status="CLOSED"
+		db_role="UNKNOWN"
+		bk_mode="UNKNNOWN"
+	else 
+        	inst_status=$(printf "select '___ '||status from v\$instance;\n" | $_sqlplus | grep ^___ | awk '{print $2}')
+		db_role=$(printf "select '___ '||database_role from v\$database;\n" | $_sqlplus | grep ^___ | awk '{print $2" "$3}')
+		bk_mode=$(printf "select '___ '||count(1) from v\$backup where status='ACTIVE';\n" | $_sqlplus | grep ^___ | awk '{print $2}')
+	fi
+}
+
+function db_startup()
+{
+        printf "startup $option\n" | $_sqlplus >/dev/null
+        lsnrst; [ $lsnr_status -eq 0 ] && ($_lsnrctl start >/dev/null)
+}
+
+function db_shutdown()
+{
+        printf "shutdown $option\n" | $_sqlplus >/dev/null
+        lsnrst; [ $lsnr_status -eq 1 ] && ($_lsnrctl stop >/dev/null)
+}
+
+function lsnrst()
+{
+        ls1=$(ps -ef | grep tnslsnr | grep -v grep | wc -l | awk '{print $1}')
+        ls2=$(netstat -natp 2>/dev/null | grep LISTEN | grep $lsnr_port | grep -v grep | wc -l| awk '{print $1}')
+        if [[ ($ls1 == 1 && $ls2 == 1) ]];
+        then
+                lsnr_status=1; echo ONLINE
+        else
+                lsnr_status=0; echo OFFLINE
+        fi
+}
+
+function convert_to_physical()
+{
+	if [ "$db_role" = "PHYSICAL STANDBY" ];
+	then
+		echo "$db_role"
+	else
+		if [ "$db_role" = "SNAPSHOT STANDBY" ];
+		then
+			printf "convert database \"$ORACLE_SID\" to physical standby;\n" | $_dgmgrl_ >/dev/null
+			db_status; echo $db_role
+		else
+			echo "ERROR: Unable to process database role"
+			exit 1
+		fi
+	fi
+}
+
+function convert_to_snapshot()
+{
+	if [ "$db_role" = "SNAPSHOT STANDBY" ];
+	then
+		echo $db_role
+	else	
+		if [ "$db_role" = "PHYSICAL STANDBY" ];
+		then
+			printf "convert database \"$ORACLE_SID\" to snapshot standby;\n" | $_dgmgrl >/dev/null
+			sleep 5
+			db_status; echo $db_role
+		else
+			echo "ERROR: uanble to process database role"
+			exit 3
+		fi
+	fi
+}
+
+function enable_backup_mode()
+{
+	printf "alter database begin backup;\n" | $_sqlplus >/dev/null
+}
+
+function disable_backup_mode()
+{
+	printf "alter database end backup;\n" | $_sqlplus >/dev/null
+}
+
+#===============================================================
+if [ $# -lt 2 ];
+then
+        clear; echo
+        echo "Usage: $0 <instance_name> <status|start|shutdown|convert|backupmode|backupon|backupoff> { <startup/shutdown/convert option> }"
+	echo; echo "<instance_name>				Database instance name"
+	echo; echo "<status|start|shutdown|convert		Whether to start/stop/convert database"
+	echo "backupmode|backupon|backupoff>		Show/enable/disable database backup mode"
+	echo; echo "<startup/shutdown/convert option>	How to start/stop convert: open/immediate/physical/snapshot standby"
+        echo; exit 0
+else
+        inst_name=$1
+        action=$2
+        option=$3
+        ORACLE_HOME=$(grep $inst_name /etc/oratab | awk -F":" '{print $2}')
+        ORACLE_SID=$inst_name
+        export ORACLE_HOME ORACLE_SID
+        _sqlplus="$ORACLE_HOME/bin/sqlplus -s / as sysdba"
+        _lsnrctl="$ORACLE_HOME/bin/lsnrctl"
+	_dgmgrl="${ORACLE_HOME}/bin/dgmgrl /"
+	_dgmgrl_="${ORACLE_HOME}/bin/dgmgrl sys/g0l1v3p13"
+        lsnr_port=1521
+fi
+
+#===============================================================
+case $action in
+        status)         db_status; echo $inst_status; lsnrst; echo $db_role	       	;;
+        start)          db_startup              					;;
+        shutdown)       db_shutdown             					;;
+	backupmode)	db_status; echo $bk_mode					;;
+	backupon)	enable_backup_mode							;;
+	backupoff)	disable_backup_mode						;;
+	convert)
+		db_status	
+		case $option in
+			physical)	convert_to_physical		;;
+			snapshot)	convert_to_snapshot		;;
+			*) clear; echo "ERROR: Given convert option is not valid (if given)"	;;
+		esac
+		;;
+        *)              echo ERROR              ;;
+esac
+
+exit 0
