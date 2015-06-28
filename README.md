@@ -20,7 +20,10 @@ Create in /etc:<br>
 **[/etc/dbcmgt.conf]**<br>
 \<container_name>    \<ORACLE_SID>    \<startup_option><br>
 <br>
-<table width=65%>
+<table width=65% border=0>
+<tr colspan=3>
+<th><bold>[/etc/dbcmgt.conf</bold></th>
+</tr>
 <tr>
 <td>_container_name_</td>
 <td>_ORACLE_SID_</td>
