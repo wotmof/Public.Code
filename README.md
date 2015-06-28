@@ -18,8 +18,17 @@ dbcmgt.conf
 dbcmgt configuration file, basically filters containers to list.<br>
 Create in /etc:<br>
 **[/etc/dbcmgt.conf]**<br>
-<<container_name>>    <<ORACLE_SID>>    <<startup_option>><br>
+\<container_name>    \<ORACLE_SID>    \<startup_option><br>
 <br>
+<table width=65%>
+<tr>
+<td>\<container_name></td>
+<td>\<ORACLE_SID</td>
+<td>\<startup_option></td>
+</tr>
+</table>
+
+
 <br>
 pmdg.lsp
 --------------
@@ -35,8 +44,4 @@ It applies archived redo log shipped by PRIMARY, to the STANBY database (which i
 Copy/install as oracle in your scripts dir.<br>
 Set to run via crontab at <your_log_switching_rate>.<br>
 
-
-
-
-\<test>
 
