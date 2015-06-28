@@ -28,7 +28,7 @@ Create in /etc:<br>
 <td>_startup_option_</td>
 </tr>
 </table>
-<i>(values are separated by tabs or spaces)
+<i>(values are separated by tabs or spaces)</i>
 
 
 <br>
