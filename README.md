@@ -18,8 +18,7 @@ dbcmgt.conf
 dbcmgt configuration file, basically filters containers to list.<br>
 Create in /etc:<br>
 /etc/dbcmgt.conf<br>
-**[/etc/dbcmgt.conf]**<br>
-<container_name>    <ORACLE_SID>    <Startup_option><br>
+container_name    ORACLE_SID    Startup_option<br>
 <br>
 <br>
 pmdg.lsp
