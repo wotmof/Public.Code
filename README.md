@@ -22,9 +22,9 @@ Create in /etc:<br>
 <br>
 <table width=65%>
 <tr>
-<td>\<container_name></td>
-<td>\<ORACLE_SID</td>
-<td>\<startup_option></td>
+<td><container_name></td>
+<td><ORACLE_SID</td>
+<td><startup_option></td>
 </tr>
 </table>
 
