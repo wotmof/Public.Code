@@ -34,3 +34,15 @@ Poor Men Data Guard Recovery.<br>
 It applies archived redo log shipped by PRIMARY, to the STANBY database (which is in MOUNT).<br>
 Copy/install as oracle in your scripts dir.<br>
 Set to run via crontab at <your_log_switching_rate>.<br>
+
+
+
+
+
+*single asterisks*
+
+_single underscores_
+
+**double asterisks**
+
+__double underscores__
