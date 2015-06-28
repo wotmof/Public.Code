@@ -1,0 +1,200 @@
+#!/bin/bash
+#
+#
+#
+# Name		pmdg.rcv
+# Path		/usr/local/utils/bin
+# Description	Poor Men Data Guard RECOVERY Procedure
+#
+#
+#
+# ver 0.0.1 - JUL 2013 [UK]
+
+#set -x
+
+
+trap 'cleanup; msg="---->Ending $_exec (SID)"; log2; clear; echo "Poor Men DataGuard stopped by user. ByE ByE."; echo; exit 0' 2 3
+
+
+function cleanup()
+{
+	msg="<-----Ending $_exec"; log2
+	[ -f $_diff ] && rm $_diff
+	[ -f $___pidfile ] && rm $___pidfile
+	[ -f $_tmp ] && rm $_tmp
+	[ -f $___sesrun ] && rm $___sesrun
+	[ -f $___current ] && rm $___current
+}
+
+function log2()
+{
+	printf "%10s %8s %8s %-80s\n" "$(date +%d/%m/%Y)" "$(date +%H:%M:%S)" "$ORACLE_SID" "$msg" >> $___logfile
+}
+
+function get_inst_status()
+{
+	bgp=$(ps -ef | grep ora_ | grep -v grep | grep $ORACLE_SID | wc -l | awk '{print $1}')
+	if [ $bgp -lt 5 ];
+	then
+		clear; echo "WARNING: Instance \"$ORACLE_SID\" is not running"
+		cleanup; echo; exit 1
+	else
+		inst_status=$(printf "select '___ '||status from v\$instance;\n" | $_sqlplus | grep ^___ | awk '{print $2}')
+	fi
+}
+
+
+################################################################################# VariAbleS
+_exec="pmdg.rcv"
+base_dir="/usr/local/utils"
+___logfile="${base_dir}/log/${_exec}.log"
+_tmp="${base_dir}/tmp/${_exec}$$.tmp"
+___sesrun="${base_dir}/tmp/${_exec}$$.ses"
+_diff="${bae_dir}/tmp/${_exec}$$.diff"
+_rsync=$(which rsync)
+wait=60
+retry=10
+
+################################################################################# Pre-FligHT ChecKS
+if [ $# -lt 3 ];
+then
+	clear; echo
+	echo "Usage: $0 <oracle_sid> <archive_directory> <applied_arc_directory> { <unattended> }"
+	echo
+	echo "Options:"
+	echo "	<oracle_sid>			Database SID (STANDBY) to be recovered"
+	echo "	<archive_directory>		Directory on file system where archived redo logs are stored"
+	echo "	<applied_arc_directory>		Directory for applied archivelogs"
+	echo "	<refresh>			Wait refresh"
+	echo "	<unattended>			Whether an operator needs a direct output/feed on archiving to remote"
+	echo "						u	Run unattended, no output. Default is show output"
+	echo; exit 1
+else
+	ORACLE_SID=$1; export ORACLE_SID
+	arc_dir=$2
+	applied_dir=$3
+	refresh=$4
+	duration=$5
+	arg=$6
+	unattended=${arg:=v}
+	if [ ! -d $arc_dir ];
+	then
+		clear; echo
+		echo "ERROR: Given archive log directory \"$arc_dir\" doesn't exist on $(hostname)"
+		echo; exit 1
+	fi 	
+	ORACLE_HOME=/oracle/app/oracle/product/10gR2; export ORACLE_HOME
+	_sqlplus="${ORACLE_HOME}/bin/sqlplus -s / as sysdba"
+	___pidfile="${base_dir}/var/run/${_exec}_${ORACLE_SID}.pid"
+	___recoverylog="${base_dir}/log/${ORACLE_SID}_recovery.log"
+	___current="${base_dir}/tmp/${_exec}_${ORACLE_SID}.tmp"
+	___applied="${base_dir}/var/pmdg_${ORACLE_SID}.applied"
+	if [ ! -d $arc_base ];
+	then
+		clear; echo
+		echo "WARNING: Unable to locate archived log base directory on $(hostname)"
+		echo; exit 2
+	fi
+fi
+
+if [ -f $___pidfile ];
+then
+	clear; echo "WARNING: An instance of $_exec is already running"
+	echo; exit 1
+else
+	echo "$$ $ORACLE_SID $(date +%s)" > $___pidfile
+	msg="----->Starting $_exec on $(hostname)"; log2
+fi
+
+[ -f $___current ] && rm $___current
+echo "# Poor Men Data Guard" > $___sesrun
+echo "# ORACLE_SID: $ORACLE_SID" >> $___sesrun
+echo "#      Start: $(date +%d/%m/%Y) $(date +%H:%M:%S)" >> $___sesrun
+count=0
+clear; echo "Starting unattended recovery trigger script for \"$ORACLE_SID\" on $(hostname)"
+#################################################################### You ShOuLd CaLl Me MaIn
+ls $arc_dir | sort > $___current
+	#ls $arc_dir | sort > $_tmp
+	#if [ -s $_tmp ];
+	#then
+	#	while read line
+	#	do
+	#		file_lsn=$(echo $line | awk -F"_" '{print $2}')
+	#		[ $file_lsn -ge $log_sqn ] && echo $line >> $___current
+	#	done < $_tmp 
+	#fi
+	#echo "+++++++++++"; cat $___current; echo "+++++++++++++"; cleanup; exit 0
+
+if [ ! -f $___applied ];
+then
+	if [ -s $___current ];
+	then
+		cat $___current > $_diff
+	fi
+else
+	if [ -s $___current ];
+	then
+		diff $___current $___applied | grep \< | awk '{print $2}' > $_diff
+	fi
+fi
+
+	#echo "++++++++++++++++++++++++"; cat $_diff; echo "++++++++++++++++++++++++++"; cleanup; exit 0
+
+	############### Apply logs to recover database 
+if [ -s $_diff ];
+then
+	get_inst_status
+	if [ $inst_status = "MOUNTED" ];
+	then
+		msg="Starting Recovery session"; log2
+		printf "\nStarting unattended Recovery...\n"
+		$_sqlplus <<EOF > $___recoverylog
+recover database using backup controlfile until cancel
+auto
+quit
+EOF
+		grep "log file" $___recoverylog | awk -F"'" '{print $2}' > $_tmp
+		nlogs=$(grep "log file" $___recoverylog | wc -l | awk '{print $1}')
+		#echo; echo "+++++++++++"; cat $_tmp; echo "++++++++++++"
+		if [ $nlogs -ge 1 ];
+		then
+			while read line
+			do
+				if [ -f $line ];
+				then
+					file_=$(echo $line | sed 's/.*\///g')
+					file_ts=$(stat $line | grep Modify | awk '{print $2" "$3}' | sed 's/\.000000000//g')
+					msg="Arc $line SUCCESSFULLY applied"; log2
+					echo "Archivelog $line SUCCESSFULLY applied to recover \"$ORACLE_SID\""
+					echo "$file_ $file_ts" >> $___applied
+					mv $line ${applied_dir}/
+					if [ $? -eq 0 ];
+					then
+						msg="Arc $line moved"; log2
+					else
+						msg="ERROR: Unable to move $line to applied_dir"; log2
+					fi
+				fi
+			done < $_tmp	
+		else
+			echo "No archivelogs were applied to \"$ORACLE_SID\" during recovery session"
+			msg="No archivelog were applied to \"$ORACLE_SID\" during recovery session"; log2
+		fi
+		msg="Recovery session terminated"; log2
+		echo "[ done ]"
+	else
+		echo "WARNING: \"$ORACLE_SID\" is not in running in MOUNTED state"
+		msg="$ORACLE_SID is not in MOUNTED state. quitin"; log2
+		cleanup; exit 0
+	fi
+else
+	echo "ERROR: Unable to locate archivelog: $arclog"
+	msg="ERROR: Unable to locate archivelog: $arclog"; log2
+	#echo; exit 1
+fi
+echo
+
+cleanup
+
+exit 0
+##################################################################### YoU SHoUldN't CalL me at ALL!
