@@ -17,12 +17,9 @@ dbcmgt.conf
 --------------
 dbcmgt configuration file, basically filters containers to list.<br>
 Create in /etc:<br>
-**[/etc/dbcmgt.conf]**<br>
-\<container_name>    \<ORACLE_SID>    \<startup_option><br>
-<br>
 <table width="65%" border="0">
 <tr>
-<th colspan=3><bold>[/etc/dbcmgt.conf</bold></th>
+<th colspan=3><bold>[/etc/dbcmgt.conf]</bold></th>
 </tr>
 <tr>
 <td>_container_name_</td>
@@ -30,6 +27,7 @@ Create in /etc:<br>
 <td>_startup_option_</td>
 </tr>
 </table>
+<i>(values are separated by tabs or spaces)
 
 
 <br>
