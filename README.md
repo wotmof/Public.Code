@@ -38,11 +38,5 @@ Set to run via crontab at <your_log_switching_rate>.<br>
 
 
 
+\<test>
 
-*single asterisks*
-
-_single underscores_
-
-**double asterisks**
-
-__double underscores__
