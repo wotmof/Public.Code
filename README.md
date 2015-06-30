@@ -46,4 +46,8 @@ It applies archived redo log shipped by PRIMARY, to the STANBY database (which i
 Copy/install as oracle in your scripts dir.<br>
 Set to run via crontab at <your_log_switching_rate>.<br>
 
+<br>
+pmdg.report
+--------------
+Poor Men Data Guard Report script.<br>
 
