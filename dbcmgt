@@ -4,8 +4,8 @@
 #
 # Name			dbcmgt
 # Path			/usr/bin
-# Description		Database inside linux Containers Management
-#
+# Description		Database in Container managemtn script
+#			Used to start/stop/show Oracle databases running inside LXC
 #
 #
 #
