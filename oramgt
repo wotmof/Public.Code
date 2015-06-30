@@ -5,6 +5,7 @@
 # Name                  oramgt
 # path                  /home/oracle ?!?
 # Description           Oracle Database/listener startup/shutdown utility
+#			Used from within the LXC container
 #
 #
 #
@@ -28,6 +29,7 @@
 #
 #
 #
+#=====================================================================================
 trap 'clear; echo Bye.; echo; exit 0' 2 3
 
 #=====================================================================================
