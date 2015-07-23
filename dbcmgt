@@ -4,28 +4,17 @@
 #
 # Name			dbcmgt
 # Path			/usr/bin
-# Description		Database in Container managemtn script
-#			Used to start/stop/show Oracle databases running inside LXC
+# Description		Database inside linux Containers Management
 #
 #
 #
-#--------------------------------------------------
-#          i'm not responsible for this
-#                      __                   ___
-#     .--.--.--.-----.|  |_.--------.-----.'  _|
-#     |  |  |  |  _  ||   _|        |  _  |   _|
-#     |________|_____||____|__|__|__|_____|__|
-#                 made me do it!
-#-------------------------------------------------:)
+#
 #+------------------------------------------------------------+
 #| wotmof was here                                            |
 #| wotmof@yahoo.com - fabrizio.bordacchini@simplyhealth.co.uk |
 #| ver 0.0.1 - JUN 2015 [UK] >|<                              |
-#| in the meantime                                            |
+#| apples give health                                         |
 #+------------------------------------------------------------+
-#
-#
-#
 #
 #==================================================================
 trap 'clear; echo Bye.; echo; exit 0' 2 3
@@ -36,6 +25,7 @@ function log2()
 }
 function header()
 {
+	#clear                 whyyyyy? wheeennnn? whaaaaat? really? i should, should i. Do you think?
 	clear
 	title=" $(hostname -s) Linux Containers Management "; title_=${#title}
 	for((i=1;i<=$((_cols/2-title_/2));i++)); do printf "="; done
@@ -82,6 +72,24 @@ function plot_status()
 	esac
 }
 
+function btrfs_status()
+{
+	btrfs=($(/sbin/btrfs fi show | grep devid | awk '{print $4" "$6}'))
+	used_space=$(echo ${btrfs[1]} | sed 's/\..*//g'); tot_space=$(echo ${btrfs[0]} | sed 's/\..*//g')
+	pct_used=$((used_space*100/tot_space))
+	if [ $pct_used -ge $warn_pct ];
+	then
+		if [ $pct_used -ge $crit_pct ];
+		then
+			printf "\e[38;05;255;41mBTRFS used space at %2s%% ${used_space}/${tot_space} GB\e[0m \e[38;05;0;41m EXTEND BTRFS NOW!! ADD disk,volume,physical volume,cat or dog! Do something!\e[0m\n" "$pct_used"
+		else
+			printf "\e[38;05;255;43mBTRFS used space at %2s%% ${used_space}/${tot_space} GB\e[0m \e[38;05;0;43m YOU SHOULD PLAN A file system EXTENSION  \e[0m\n" "$pct_used"
+		fi
+	else
+		printf "\e[38;05;255;42mBTRFS used space at %2s%% ${used_space}/${tot_space} GB\e[0m\n" "$pct_used"
+	fi
+}
+
 function dbs_status()
 {
 	run=1
@@ -102,6 +110,8 @@ function dbs_status()
 				lxc_db_status; plot_status
 			done
 		fi
+		for((i=1;i<=$_cols;i++)); do printf "="; done; echo
+		btrfs_status
 		for((i=1;i<=$_cols;i++)); do printf "="; done; echo
 		if [ $refresh -eq 0 ];
 		then
@@ -195,7 +205,7 @@ ___cfg="${base_dir}/${_exec}.conf"
 ___logfile="/var/log/lxc/dbcmgt.log"
 _oramgt="/home/oracle/oramgt"
 _cols=$(tput cols)
-
+warn_pct=85; crit_pct=92
 #==================================================================
 if [ ! -f $___cfg ];
 then
@@ -229,4 +239,3 @@ esac
 echo	
 
 exit 0
-
